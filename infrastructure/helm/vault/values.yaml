@@ -1,0 +1,124 @@
+# HashiCorp Vault Helm Values Configuration
+# Version: 0.25.0
+# Purpose: Defines deployment parameters for Vault in the AI-Powered Detection Platform
+
+server:
+  # Vault Server Image Configuration
+  image:
+    repository: hashicorp/vault
+    tag: "1.13.3"
+    pullPolicy: IfNotPresent
+
+  # High Availability Configuration
+  ha:
+    enabled: true
+    replicas: 3
+    raft:
+      enabled: true
+      setNodeId: true
+      config:
+        retryJoin:
+          enabled: true
+          serviceName: vault-internal
+          maxJoinRetries: 10
+
+  # Resource Allocation
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+  # Data Storage Configuration
+  dataStorage:
+    enabled: true
+    size: "10Gi"
+    storageClass: "gp3"
+    accessMode: "ReadWriteOnce"
+    annotations:
+      backup.velero.io/backup-volumes: "data"
+
+  # Audit Storage Configuration
+  auditStorage:
+    enabled: true
+    size: "5Gi"
+    storageClass: "gp3"
+    accessMode: "ReadWriteOnce"
+    annotations:
+      backup.velero.io/backup-volumes: "audit"
+
+  # Service Account Configuration
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: "arn:aws:iam::${AWS_ACCOUNT_ID}:role/vault-server"
+
+  # UI Configuration
+  ui:
+    enabled: true
+    serviceType: ClusterIP
+    externalTrafficPolicy: Local
+
+  # Environment Variables
+  extraEnvironmentVars:
+    VAULT_ADDR: "http://127.0.0.1:8200"
+    VAULT_API_ADDR: "http://$(POD_IP):8200"
+    VAULT_CLUSTER_ADDR: "https://$(POD_NAME).vault-internal:8201"
+    VAULT_LOG_LEVEL: "info"
+
+# Vault Agent Injector Configuration
+injector:
+  enabled: true
+  replicas: 2
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: "30s"
+      labels:
+        release: prometheus
+
+# CSI Driver Configuration
+csi:
+  enabled: true
+  daemonSet:
+    providesVolume: true
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "50m"
+      limits:
+        memory: "128Mi"
+        cpu: "100m"
+
+# Audit Configuration
+audit:
+  enabled: true
+  logFormat: "json"
+  logLevel: "info"
+  destination: "file"
+  rotate:
+    enabled: true
+    maxSize: "10MB"
+    maxFiles: 10
+
+# TLS Configuration
+tls:
+  enabled: true
+  serverName: "vault"
+  certManager:
+    enabled: true
+    issuerRef:
+      name: "vault-issuer"
+      kind: "ClusterIssuer"
+  caCert:
+    secretName: "vault-ca-cert"
