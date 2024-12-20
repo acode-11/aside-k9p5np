@@ -1,0 +1,202 @@
+name: AI Service CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/backend/ai-service/**'
+      - '.github/workflows/ai-service.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/backend/ai-service/**'
+      - '.github/workflows/ai-service.yml'
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.11'
+  POETRY_VERSION: '1.6.1'
+  DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
+  IMAGE_NAME: ai-service
+  CUDA_VERSION: '12.0.0'
+  MODEL_CACHE_KEY: ${{ github.sha }}-models
+  GPU_ENABLED: 'true'
+
+jobs:
+  test:
+    name: Test AI Service
+    runs-on: ubuntu-latest-gpu
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 - --version ${{ env.POETRY_VERSION }}
+          poetry config virtualenvs.create false
+          
+      - name: Setup CUDA environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nvidia-cuda-toolkit
+          nvidia-smi
+          
+      - name: Cache model artifacts
+        uses: actions/cache@v3
+        with:
+          path: ~/models
+          key: ${{ env.MODEL_CACHE_KEY }}
+          restore-keys: |
+            ${{ runner.os }}-models-
+            
+      - name: Install dependencies
+        working-directory: src/backend/ai-service
+        run: poetry install --with dev
+        
+      - name: Run linting
+        working-directory: src/backend/ai-service
+        run: |
+          poetry run black . --check
+          poetry run isort . --check
+          poetry run flake8 .
+          
+      - name: Run type checking
+        working-directory: src/backend/ai-service
+        run: poetry run mypy .
+        
+      - name: Run unit tests
+        working-directory: src/backend/ai-service
+        env:
+          CUDA_VISIBLE_DEVICES: '0'
+          MODEL_CACHE_PATH: ~/models
+        run: |
+          poetry run pytest tests/unit \
+            --cov=src \
+            --cov-report=xml \
+            -v \
+            -m "not integration"
+            
+      - name: Run model validation tests
+        working-directory: src/backend/ai-service
+        env:
+          CUDA_VISIBLE_DEVICES: '0'
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: poetry run pytest tests/models -v -m "gpu"
+        
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: src/backend/ai-service/coverage.xml
+          flags: ai-service
+
+  build-and-scan:
+    name: Build and Scan Image
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          version: latest
+          
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: src/backend/ai-service
+          file: src/backend/ai-service/Dockerfile
+          push: false
+          load: true
+          tags: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          build-args: |
+            PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+            POETRY_VERSION=${{ env.POETRY_VERSION }}
+            CUDA_VERSION=${{ env.CUDA_VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@0.15.0
+        with:
+          image: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          
+      - name: Run SonarQube scan
+        uses: SonarSource/sonarqube-scan-action@v1.5.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          args: >
+            -Dsonar.python.version=${{ env.PYTHON_VERSION }}
+            -Dsonar.python.coverage.reportPaths=src/backend/ai-service/coverage.xml
+            -Dsonar.sources=src/backend/ai-service/src
+            
+      - name: Push image
+        if: github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v5
+        with:
+          context: src/backend/ai-service
+          push: true
+          tags: |
+            ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+  deploy:
+    name: Deploy to Production
+    needs: build-and-scan
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v3
+        with:
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+          
+      - name: Verify GPU availability
+        run: |
+          kubectl get nodes -l nvidia.com/gpu=true
+          
+      - name: Update deployment
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          kubectl set image deployment/ai-service \
+            ai-service=${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG} \
+            -n ai-services
+            
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/ai-service -n ai-services --timeout=300s
+          
+      - name: Verify model serving
+        run: |
+          kubectl exec deploy/ai-service -n ai-services -- curl -f http://localhost:8000/health/models
