@@ -1,0 +1,131 @@
+# Grafana Enterprise Helm Values Configuration
+# Version: 10.1.0
+
+# Deployment configuration
+deployment:
+  replicas: 2  # High availability setup
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: gp3
+
+# Image configuration
+image:
+  repository: grafana/grafana-enterprise
+  tag: 10.1.0  # Enterprise version for advanced features
+  pullPolicy: IfNotPresent
+
+# Server configuration
+config:
+  server:
+    domain: grafana.detection-platform.com
+    rootUrl: https://grafana.detection-platform.com
+  auth:
+    oauth_auto_login: true  # Enable SSO
+    disable_login_form: true  # Force SSO usage
+  security:
+    admin_user: ${GRAFANA_ADMIN_USER}
+    admin_password: ${GRAFANA_ADMIN_PASSWORD}
+    secret_key: ${GRAFANA_SECRET_KEY}
+
+# Data sources configuration
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      # Prometheus for metrics
+      - name: Prometheus
+        type: prometheus
+        url: http://prometheus-server:9090
+        access: proxy
+        isDefault: true
+        jsonData:
+          timeInterval: 15s  # Scrape interval alignment
+      
+      # Jaeger for distributed tracing
+      - name: Jaeger
+        type: jaeger
+        url: http://jaeger-query:16686
+        access: proxy
+      
+      # Elasticsearch for log aggregation
+      - name: Elasticsearch
+        type: elasticsearch
+        url: https://elasticsearch-master:9200
+        access: proxy
+        jsonData:
+          index: logs-*
+          timeField: "@timestamp"
+          esVersion: 8.11.0
+        secureJsonData:
+          password: ${ELASTICSEARCH_PASSWORD}
+
+# Dashboard providers configuration
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+      # Platform metrics dashboards
+      - name: Platform
+        orgId: 1
+        folder: Platform
+        type: file
+        disableDeletion: true
+        editable: false
+        options:
+          path: /var/lib/grafana/dashboards/platform
+      
+      # Security metrics dashboards
+      - name: Security
+        orgId: 1
+        folder: Security
+        type: file
+        disableDeletion: true
+        editable: false
+        options:
+          path: /var/lib/grafana/dashboards/security
+
+# Pre-configured dashboards
+dashboards:
+  platform:
+    api-performance:
+      file: dashboards/platform/api-performance.json
+    service-health:
+      file: dashboards/platform/service-health.json
+  security:
+    detection-metrics:
+      file: dashboards/security/detection-metrics.json
+    platform-security:
+      file: dashboards/security/platform-security.json
+
+# Ingress configuration
+ingress:
+  enabled: true
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: grafana.detection-platform.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: grafana-tls
+      hosts:
+        - grafana.detection-platform.com
+
+# Prometheus ServiceMonitor configuration
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+  labels:
+    release: prometheus
