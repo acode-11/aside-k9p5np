@@ -1,0 +1,143 @@
+# ELK Stack Helm Values Configuration
+# Version: 8.11.0
+# Purpose: Configure Elasticsearch, Logstash, Kibana, and Filebeat for the AI-Powered Detection Platform
+
+# Elasticsearch Configuration
+elasticsearch:
+  image:
+    repository: docker.elastic.co/elasticsearch/elasticsearch
+    tag: 8.11.0
+    pullPolicy: IfNotPresent
+  
+  # Master node configuration
+  master:
+    replicas: 3
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 4Gi
+      limits:
+        cpu: 2000m
+        memory: 8Gi
+    persistence:
+      enabled: true
+      size: 100Gi
+      storageClass: gp3
+  
+  # Data node configuration
+  data:
+    replicas: 3
+    resources:
+      requests:
+        cpu: 2000m
+        memory: 8Gi
+      limits:
+        cpu: 4000m
+        memory: 16Gi
+    persistence:
+      enabled: true
+      size: 500Gi
+      storageClass: gp3
+  
+  # Security settings
+  security:
+    enabled: true
+    tls:
+      enabled: true
+      certificateSecret: elasticsearch-certs
+    authentication:
+      enabled: true
+      secretName: elasticsearch-credentials
+
+# Kibana Configuration
+kibana:
+  image:
+    repository: docker.elastic.co/kibana/kibana
+    tag: 8.11.0
+    pullPolicy: IfNotPresent
+  
+  replicas: 2
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  
+  ingress:
+    enabled: true
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    hosts:
+      - host: kibana.detection-platform.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: kibana-tls
+        hosts:
+          - kibana.detection-platform.com
+
+# Logstash Configuration
+logstash:
+  image:
+    repository: docker.elastic.co/logstash/logstash
+    tag: 8.11.0
+    pullPolicy: IfNotPresent
+  
+  replicas: 3
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: 1000m
+      memory: 4Gi
+  
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: gp3
+  
+  config:
+    pipeline:
+      workers: 2
+      batchSize: 125
+      batchDelay: 50
+
+# Filebeat Configuration
+filebeat:
+  image:
+    repository: docker.elastic.co/beats/filebeat
+    tag: 8.11.0
+    pullPolicy: IfNotPresent
+  
+  daemonset:
+    enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi
+  
+  config:
+    processors:
+      - add_kubernetes_metadata:
+          in_cluster: true
+    inputs:
+      - type: container
+        paths:
+          - /var/log/containers/*.log
+
+# Prometheus ServiceMonitor Configuration
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+  labels:
+    release: prometheus
