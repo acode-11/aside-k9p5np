@@ -1,0 +1,132 @@
+syntax = "proto3";
+
+package auth;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/your-org/detection-platform/backend/shared/proto/auth";
+option java_package = "com.yourorg.detectionplatform.proto.auth";
+option java_multiple_files = true;
+
+// AuthService provides comprehensive authentication and authorization functionality
+// including OAuth 2.0/OIDC, JWT, MFA, and API key authentication methods
+service AuthService {
+  // Login authenticates a user with email and password
+  // Returns JWT tokens and MFA status if required
+  rpc Login(LoginRequest) returns (LoginResponse) {}
+
+  // ValidateMFA validates multi-factor authentication tokens
+  // Supports TOTP and hardware security keys
+  rpc ValidateMFA(ValidateMFARequest) returns (LoginResponse) {}
+
+  // RefreshToken issues new access tokens using a valid refresh token
+  // Implements secure token rotation with audit logging
+  rpc RefreshToken(RefreshTokenRequest) returns (LoginResponse) {}
+
+  // OAuthLogin handles OAuth 2.0/OIDC authentication flows
+  // Supports multiple identity providers with state validation
+  rpc OAuthLogin(OAuthLoginRequest) returns (LoginResponse) {}
+}
+
+// LoginRequest contains credentials and context for authentication
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+  string client_id = 3;
+  string device_info = 4;
+}
+
+// LoginResponse contains authentication tokens and session context
+message LoginResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  int32 expires_in = 3;
+  bool requires_mfa = 4;
+  string user_id = 5;
+  repeated string roles = 6;
+  string session_id = 7;
+  google.protobuf.Timestamp issued_at = 8;
+  map<string, string> security_context = 9;
+}
+
+// ValidateMFARequest contains MFA validation parameters
+message ValidateMFARequest {
+  string user_id = 1;
+  string token = 2;
+  enum MFAMethod {
+    TOTP = 0;
+    SECURITY_KEY = 1;
+    SMS = 2;
+    EMAIL = 3;
+  }
+  MFAMethod method = 3;
+  string session_id = 4;
+}
+
+// RefreshTokenRequest contains parameters for token refresh
+message RefreshTokenRequest {
+  string refresh_token = 1;
+  string client_id = 2;
+  string session_id = 3;
+}
+
+// OAuthLoginRequest contains OAuth 2.0/OIDC authentication parameters
+message OAuthLoginRequest {
+  string provider = 1;
+  string code = 2;
+  string state = 3;
+  string redirect_uri = 4;
+  
+  enum Provider {
+    GOOGLE = 0;
+    GITHUB = 1;
+    MICROSOFT = 2;
+    OKTA = 3;
+    AUTH0 = 4;
+  }
+  Provider provider_type = 5;
+}
+
+// AuthError represents authentication and authorization errors
+message AuthError {
+  enum ErrorCode {
+    INVALID_CREDENTIALS = 0;
+    ACCOUNT_LOCKED = 1;
+    MFA_REQUIRED = 2;
+    INVALID_TOKEN = 3;
+    TOKEN_EXPIRED = 4;
+    INSUFFICIENT_PERMISSIONS = 5;
+    INVALID_OAUTH_STATE = 6;
+    RATE_LIMITED = 7;
+  }
+  ErrorCode code = 1;
+  string message = 2;
+  string request_id = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+// Session represents an authenticated user session
+message Session {
+  string session_id = 1;
+  string user_id = 2;
+  string client_id = 3;
+  repeated string roles = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp expires_at = 6;
+  string device_info = 7;
+  string ip_address = 8;
+  map<string, string> metadata = 9;
+}
+
+// UserContext contains authenticated user information
+message UserContext {
+  string user_id = 1;
+  string email = 2;
+  repeated string roles = 3;
+  repeated string permissions = 4;
+  map<string, string> attributes = 5;
+  bool mfa_enabled = 6;
+  repeated string allowed_ip_ranges = 7;
+  google.protobuf.Timestamp last_login = 8;
+}
