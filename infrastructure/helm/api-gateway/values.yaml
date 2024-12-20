@@ -1,0 +1,185 @@
+# Kong API Gateway Helm Values Configuration
+# Version: 2.8.1
+# Platform: AI-Powered Detection Platform
+
+kong:
+  enabled: true
+  
+  # Container image configuration
+  image:
+    repository: kong
+    tag: "2.8.1-alpine"
+    pullPolicy: IfNotPresent
+
+  # High availability configuration
+  replicaCount: 3
+  
+  # Resource allocation
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  # Kong environment variables
+  env:
+    database: "off"
+    declarative_config: "/usr/local/kong/declarative/kong.yml"
+    proxy_access_log: /dev/stdout
+    admin_access_log: /dev/stdout
+    proxy_error_log: /dev/stderr
+    admin_error_log: /dev/stderr
+    ssl: "on"
+    ssl_cipher_suite: "modern"
+    
+  # Ingress controller configuration
+  ingressController:
+    enabled: true
+    installCRDs: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  # Proxy service configuration
+  proxy:
+    enabled: true
+    type: ClusterIP
+    http:
+      enabled: true
+      port: 80
+      targetPort: 8000
+    tls:
+      enabled: true
+      port: 443
+      targetPort: 8443
+      parameters: ["http2"]
+      http2: true
+
+  # Admin API configuration
+  admin:
+    enabled: true
+    type: ClusterIP
+    http:
+      enabled: true
+      port: 8001
+      targetPort: 8001
+    tls:
+      enabled: true
+      port: 8444
+      targetPort: 8444
+
+  # Plugin configuration
+  plugins:
+    configMaps:
+      - name: kong-plugin-configs
+        mountPath: /usr/local/kong/declarative
+    included:
+      - jwt
+      - oauth2
+      - rate-limiting
+      - cors
+      - ip-restriction
+      - prometheus
+
+  # Monitoring configuration
+  serviceMonitor:
+    enabled: true
+    interval: "30s"
+    scrapeTimeout: "10s"
+    labels:
+      release: prometheus
+
+  # Pod annotations for monitoring
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8100"
+
+  # High availability settings
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+
+  # Update strategy
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+
+  # Affinity and anti-affinity rules
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - kong
+            topologyKey: kubernetes.io/hostname
+
+# Redis configuration for rate limiting and caching
+redis:
+  enabled: true
+  architecture: standalone
+  
+  # Authentication
+  auth:
+    enabled: true
+    sentinel: true
+    password: "${REDIS_PASSWORD}"
+
+  # Master node configuration
+  master:
+    persistence:
+      enabled: true
+      size: 8Gi
+      storageClass: standard
+    
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+    # Security context
+    podSecurityContext:
+      fsGroup: 1001
+    containerSecurityContext:
+      runAsUser: 1001
+
+  # Metrics configuration
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: "30s"
+
+# Global settings
+global:
+  # TLS configuration
+  tls:
+    enabled: true
+    certificateSecret: api-gateway-tls
+    minimumTLSVersion: "TLSv1.2"
+
+  # Pod security
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+
+  # Network policies
+  networkPolicies:
+    enabled: true
+    ingressLabels:
+      app: ingress-nginx
