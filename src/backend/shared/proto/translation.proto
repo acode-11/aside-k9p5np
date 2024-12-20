@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package translation.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+import "detection.proto";
+
+option go_package = "github.com/org/detection-platform/proto/translation";
+
+// TranslationRequest represents a request to translate detection content between platforms
+message TranslationRequest {
+  // Unique identifier of the detection to translate
+  string detection_id = 1;
+  // Detection content in Universal Detection Format
+  string content = 2;
+  // Source platform type of the detection
+  detection.v1.PlatformType source_platform = 3;
+  // Target platform to translate the detection to
+  detection.v1.PlatformType target_platform = 4;
+  // Platform-specific translation options
+  map<string, string> options = 5;
+}
+
+// TranslationResponse contains the translated detection with quality metrics
+message TranslationResponse {
+  // Original detection identifier
+  string detection_id = 1;
+  // Translated detection content
+  string translated_content = 2;
+  // Platform the detection was translated to
+  detection.v1.PlatformType target_platform = 3;
+  // Translation confidence score (0-1)
+  double confidence_score = 4;
+  // List of validation warnings
+  repeated ValidationWarning warnings = 5;
+  // Timestamp when translation was completed
+  google.protobuf.Timestamp translated_at = 6;
+}
+
+// ValidationWarning represents issues found during translation
+message ValidationWarning {
+  // Standardized warning code
+  string code = 1;
+  // Detailed warning message
+  string message = 2;
+  // Warning severity level
+  WarningLevel level = 3;
+}
+
+// WarningLevel indicates the severity of translation validation warnings
+enum WarningLevel {
+  // Default unspecified value
+  WARNING_LEVEL_UNSPECIFIED = 0;
+  // Informational notices
+  WARNING_LEVEL_INFO = 1;
+  // Minor issues that may affect performance
+  WARNING_LEVEL_MINOR = 2;
+  // Major issues that may affect functionality
+  WARNING_LEVEL_MAJOR = 3;
+}
+
+// BatchTranslationRequest enables bulk translation of multiple detections
+message BatchTranslationRequest {
+  // List of translation requests
+  repeated TranslationRequest requests = 1;
+}
+
+// BatchTranslationResponse contains results for bulk translation operations
+message BatchTranslationResponse {
+  // List of translation results
+  repeated TranslationResponse responses = 1;
+  // Number of successful translations
+  int32 success_count = 2;
+  // Number of failed translations
+  int32 failure_count = 3;
+}
+
+// TranslationService provides detection format translation capabilities
+service TranslationService {
+  // Translates a single detection between platforms
+  rpc TranslateDetection(TranslationRequest) returns (TranslationResponse) {}
+  
+  // Performs bulk translation of multiple detections
+  rpc BatchTranslateDetections(BatchTranslationRequest) returns (BatchTranslationResponse) {}
+  
+  // Validates translation without performing the conversion
+  rpc ValidateTranslation(TranslationRequest) returns (ValidationWarning) {}
+}
