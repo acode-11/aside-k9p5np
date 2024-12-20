@@ -1,0 +1,213 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Community Features Schema",
+  "description": "JSON Schema for community-based collaboration, discussions, and content sharing",
+  "definitions": {
+    "user": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "name": { "type": "string", "minLength": 1 },
+        "email": { "type": "string", "format": "email" },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "moderator", "contributor", "member"]
+        },
+        "organization": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "role"]
+    }
+  },
+
+  "type": "object",
+  "oneOf": [
+    { "$ref": "#/definitions/CommunitySchema" },
+    { "$ref": "#/definitions/DiscussionSchema" },
+    { "$ref": "#/definitions/CommentSchema" },
+    { "$ref": "#/definitions/ContributionSchema" }
+  ],
+
+  "definitions": {
+    "CommunitySchema": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "name": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9-_\\s]+$"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 2000
+        },
+        "type": {
+          "type": "string",
+          "enum": ["public", "private", "enterprise"]
+        },
+        "visibility": {
+          "type": "string",
+          "enum": ["public", "private", "organization"]
+        },
+        "owner": { "$ref": "#/definitions/user" },
+        "members": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/user" }
+        },
+        "settings": {
+          "type": "object",
+          "properties": {
+            "allow_public_discussions": { "type": "boolean" },
+            "require_approval": { "type": "boolean" },
+            "auto_moderation": { "type": "boolean" },
+            "notification_preferences": {
+              "type": "object",
+              "properties": {
+                "new_discussions": { "type": "boolean" },
+                "new_comments": { "type": "boolean" },
+                "mentions": { "type": "boolean" }
+              }
+            }
+          }
+        },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "type",
+        "visibility",
+        "owner",
+        "settings",
+        "created_at",
+        "updated_at"
+      ]
+    },
+
+    "DiscussionSchema": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "community_id": { "type": "string", "format": "uuid" },
+        "title": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 200
+        },
+        "content": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10000
+        },
+        "author": { "$ref": "#/definitions/user" },
+        "detection_refs": {
+          "type": "array",
+          "items": { "$ref": "./detection.schema.json#/properties/id" }
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9-_]+$"
+          },
+          "maxItems": 10
+        },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "community_id",
+        "title",
+        "content",
+        "author",
+        "created_at",
+        "updated_at"
+      ]
+    },
+
+    "CommentSchema": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "discussion_id": { "type": "string", "format": "uuid" },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 5000
+        },
+        "author": { "$ref": "#/definitions/user" },
+        "parent_id": {
+          "type": ["string", "null"],
+          "format": "uuid"
+        },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "discussion_id",
+        "content",
+        "author",
+        "created_at",
+        "updated_at"
+      ]
+    },
+
+    "ContributionSchema": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "user_id": { "type": "string", "format": "uuid" },
+        "community_id": { "type": "string", "format": "uuid" },
+        "type": {
+          "type": "string",
+          "enum": ["detection", "discussion", "comment", "review"]
+        },
+        "detection_id": {
+          "type": ["string", "null"],
+          "format": "uuid"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "rejected", "archived"]
+        },
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "quality_score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "review_comments": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "platform_compatibility": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "user_id",
+        "community_id",
+        "type",
+        "status",
+        "created_at",
+        "updated_at"
+      ]
+    }
+  },
+
+  "additionalProperties": false
+}
