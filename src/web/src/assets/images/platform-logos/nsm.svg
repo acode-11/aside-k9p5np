@@ -1,0 +1,31 @@
+<svg 
+  width="24" 
+  height="24" 
+  viewBox="0 0 24 24" 
+  fill="none" 
+  stroke="currentColor" 
+  stroke-width="2" 
+  stroke-linecap="round" 
+  stroke-linejoin="round"
+  role="img"
+  aria-label="Network Security Monitoring platform icon"
+>
+  <title>NSM Platform</title>
+  <desc>Icon representing Network Security Monitoring platform type</desc>
+  
+  <!-- Network nodes connected in a monitored pattern -->
+  <circle cx="12" cy="12" r="3" />
+  <circle cx="6" cy="6" r="2" />
+  <circle cx="18" cy="6" r="2" />
+  <circle cx="6" cy="18" r="2" />
+  <circle cx="18" cy="18" r="2" />
+  
+  <!-- Network connections -->
+  <line x1="8" y1="6" x2="10" y2="10" />
+  <line x1="16" y1="6" x2="14" y2="10" />
+  <line x1="8" y1="18" x2="10" y2="14" />
+  <line x1="16" y1="18" x2="14" y2="14" />
+  
+  <!-- Monitoring pulse/wave overlay -->
+  <path d="M4,12 Q8,8 12,12 Q16,16 20,12" />
+</svg>
