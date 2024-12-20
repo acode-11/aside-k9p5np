@@ -1,0 +1,226 @@
+_format_version: "2.1"
+_transform: true
+
+services:
+  # Authentication Service
+  - name: auth-service
+    url: http://auth-service:3000
+    protocol: http
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 5
+    routes:
+      - name: auth-routes
+        paths:
+          - /api/v1/auth
+        strip_path: false
+        methods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        preserve_host: true
+        protocols:
+          - https
+
+  # Detection Service
+  - name: detection-service
+    url: http://detection-service:8080
+    protocol: http
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+    routes:
+      - name: detection-routes
+        paths:
+          - /api/v1/detections
+        strip_path: false
+        methods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        preserve_host: true
+        protocols:
+          - https
+
+  # AI Service
+  - name: ai-service
+    url: http://ai-service:8000
+    protocol: http
+    connect_timeout: 120000
+    write_timeout: 120000
+    read_timeout: 120000
+    retries: 2
+    routes:
+      - name: ai-routes
+        paths:
+          - /api/v1/ai
+        strip_path: false
+        methods:
+          - POST
+          - OPTIONS
+        preserve_host: true
+        protocols:
+          - https
+
+  # Translation Service
+  - name: translation-service
+    url: http://translation-service:8080
+    protocol: http
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+    routes:
+      - name: translation-routes
+        paths:
+          - /api/v1/translate
+        strip_path: false
+        methods:
+          - POST
+          - OPTIONS
+        preserve_host: true
+        protocols:
+          - https
+
+  # Community Service
+  - name: community-service
+    url: http://community-service:3000
+    protocol: http
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+    routes:
+      - name: community-routes
+        paths:
+          - /api/v1/community
+        strip_path: false
+        methods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        preserve_host: true
+        protocols:
+          - https
+
+plugins:
+  # CORS Configuration
+  - name: cors
+    config:
+      allowed_origins:
+        - https://*.detection-platform.com
+      allowed_methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+      allowed_headers:
+        - Authorization
+        - Content-Type
+        - X-Requested-With
+        - X-Auth-Token
+      exposed_headers:
+        - X-Auth-Token
+      max_age: 3600
+      credentials: true
+      preflight_continue: false
+
+  # JWT Validation
+  - name: jwt-validator
+    config:
+      algorithm: RS256
+      key_cache_ttl: 300
+      valid_issuers:
+        - detection-platform-auth
+      valid_audiences:
+        - detection-platform-api
+      claims_to_verify:
+        - exp
+        - nbf
+        - iss
+        - sub
+        - aud
+      roles_claim: roles
+      required_roles:
+        /api/v1/detections:
+          - detection_admin
+          - detection_user
+        /api/v1/ai:
+          - ai_user
+        /api/v1/translate:
+          - translation_user
+        /api/v1/community:
+          - community_user
+      anonymous:
+        /api/v1/auth/login: true
+        /api/v1/auth/register: true
+      role_hierarchy:
+        detection_admin:
+          - detection_user
+        ai_admin:
+          - ai_user
+        translation_admin:
+          - translation_user
+        community_admin:
+          - community_user
+
+  # Rate Limiting
+  - name: rate-limiting
+    config:
+      redis_host: redis
+      redis_port: 6379
+      redis_password: ${REDIS_PASSWORD}
+      redis_timeout: 2000
+      redis_database: 0
+      redis_cluster_addresses:
+        - redis-0:6379
+        - redis-1:6379
+        - redis-2:6379
+      window_size: 3600
+      limit_by: consumer
+      fallback_to_ip: true
+      sync_rate: 10
+      route_limits:
+        /api/v1/search: 1000
+        /api/v1/detections: 500
+        /api/v1/ai: 200
+        /api/v1/translate: 100
+        /api/v1/community: 300
+
+  # Monitoring and Observability
+  - name: prometheus
+    config:
+      status_code_metrics: true
+      latency_metrics: true
+      upstream_health_metrics: true
+      per_consumer_metrics: true
+
+  # Request Transformation
+  - name: request-transformer
+    config:
+      add:
+        headers:
+          - X-Request-ID:${request.uuid}
+      remove:
+        headers:
+          - server
+          - via
+
+  # Response Transformation
+  - name: response-transformer
+    config:
+      add:
+        headers:
+          - X-Content-Type-Options:nosniff
+          - X-Frame-Options:DENY
+          - X-XSS-Protection:1; mode=block
+          - Strict-Transport-Security:max-age=31536000; includeSubDomains
