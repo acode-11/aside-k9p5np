@@ -1,0 +1,53 @@
+# Kong API Gateway Service Template
+# Version: 2.8.1
+# Platform: AI-Powered Detection Platform
+
+# Service definition for Kong API Gateway exposing proxy and admin interfaces
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: {{ .Release.Name }}-kong
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}-kong
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/name: kong
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+  annotations:
+    # Service annotations for monitoring and documentation
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8100"
+    service.beta.kubernetes.io/description: "Kong API Gateway service for AI-Powered Detection Platform"
+
+spec:
+  # Service type from values configuration (typically ClusterIP or LoadBalancer)
+  type: {{ .Values.kong.proxy.type }}
+  
+  # Port configurations for proxy and admin interfaces
+  ports:
+    # HTTP proxy port
+    - name: proxy-http
+      port: {{ .Values.kong.proxy.http.port }}
+      targetPort: {{ .Values.kong.proxy.http.targetPort }}
+      protocol: TCP
+      
+    # HTTPS proxy port with TLS termination
+    - name: proxy-https
+      port: {{ .Values.kong.proxy.tls.port }}
+      targetPort: {{ .Values.kong.proxy.tls.targetPort }}
+      protocol: TCP
+      
+    # Admin API port for internal management
+    - name: admin-http
+      port: {{ .Values.kong.admin.http.port }}
+      targetPort: {{ .Values.kong.admin.http.targetPort }}
+      protocol: TCP
+
+  # Pod selector labels to match Kong deployment
+  selector:
+    app: {{ .Release.Name }}-kong
+    app.kubernetes.io/name: kong
+    app.kubernetes.io/instance: {{ .Release.Name }}
