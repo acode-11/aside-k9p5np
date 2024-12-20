@@ -1,0 +1,150 @@
+version: 2
+updates:
+  # Frontend (React) dependencies
+  - package-ecosystem: "npm"
+    directory: "/src/web"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    versioning-strategy: "auto"
+    labels:
+      - "dependencies"
+      - "frontend"
+      - "security"
+    reviewers:
+      - "@frontend-team"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      react:
+        patterns:
+          - "react*"
+          - "@types/react*"
+        update-types:
+          - "major"
+          - "minor"
+          - "patch"
+      mui:
+        patterns:
+          - "@mui/*"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-type: "development"
+        update-types: ["version-update:semver-major"]
+
+  # Backend Node.js services dependencies
+  - package-ecosystem: "npm"
+    directory: "/src/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    versioning-strategy: "auto"
+    labels:
+      - "dependencies"
+      - "backend"
+      - "security"
+    reviewers:
+      - "@backend-team"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    ignore:
+      - dependency-type: "development"
+        update-types: ["version-update:semver-major"]
+
+  # Detection Service (Go) dependencies
+  - package-ecosystem: "gomod"
+    directory: "/src/backend/detection-service"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "golang"
+      - "security"
+    reviewers:
+      - "@backend-team"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # Translation Service (Go) dependencies
+  - package-ecosystem: "gomod"
+    directory: "/src/backend/translation-service"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "golang"
+      - "security"
+    reviewers:
+      - "@backend-team"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # AI Service (Python) dependencies
+  - package-ecosystem: "pip"
+    directory: "/src/backend/ai-service"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "python"
+      - "security"
+    reviewers:
+      - "@backend-team"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # Search Service (Python) dependencies
+  - package-ecosystem: "pip"
+    directory: "/src/backend/search-service"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "python"
+      - "security"
+    reviewers:
+      - "@backend-team"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # Docker base images
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "docker"
+      - "security"
+    reviewers:
+      - "@devops-team"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
