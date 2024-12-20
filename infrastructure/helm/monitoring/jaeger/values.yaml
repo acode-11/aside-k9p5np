@@ -1,0 +1,111 @@
+# Jaeger Helm Values Configuration
+# Version: 1.47.0
+# Purpose: Distributed tracing configuration for AI-Powered Detection Platform
+
+# Jaeger Operator Configuration
+operator:
+  enabled: true
+  image:
+    repository: jaegertracing/jaeger-operator
+    tag: 1.47.0  # Using specified version
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Main Jaeger Instance Configuration
+jaeger:
+  create: true
+  spec:
+    strategy: production  # Production deployment strategy for high availability
+    
+    # Elasticsearch storage backend configuration
+    storage:
+      type: elasticsearch
+      options:
+        es:
+          server-urls: https://elasticsearch-master:9200
+          username: ${ELASTICSEARCH_USER}
+          password: ${ELASTICSEARCH_PASSWORD}
+          index-prefix: jaeger
+
+    # Ingress configuration for Jaeger UI access
+    ingress:
+      enabled: true
+      annotations:
+        kubernetes.io/ingress.class: nginx
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+        nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      hosts:
+        - host: jaeger.detection-platform.com
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: jaeger-tls
+          hosts:
+            - jaeger.detection-platform.com
+
+    # Query service configuration
+    query:
+      replicas: 2  # High availability setup
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: 1000m
+          memory: 2Gi
+      serviceMonitor:
+        enabled: true
+        interval: 30s
+        scrapeTimeout: 10s
+        labels:
+          release: prometheus
+
+    # Collector configuration
+    collector:
+      replicas: 3  # Scale for high throughput
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: 1000m
+          memory: 2Gi
+      serviceMonitor:
+        enabled: true
+        interval: 30s
+        scrapeTimeout: 10s
+        labels:
+          release: prometheus
+
+    # Agent configuration
+    agent:
+      strategy: daemonset  # Deploy on all nodes
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 200m
+          memory: 512Mi
+
+    # Sampling strategies configuration
+    sampling:
+      default:  # Default sampling for all services
+        type: probabilistic
+        param: 1  # 100% sampling for comprehensive tracing
+      api-gateway:  # Service-specific sampling
+        type: probabilistic
+        param: 1
+      detection-service:
+        type: probabilistic
+        param: 1
+      ai-service:
+        type: probabilistic
+        param: 1
