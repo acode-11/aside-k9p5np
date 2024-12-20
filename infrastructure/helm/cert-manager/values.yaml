@@ -1,0 +1,94 @@
+# cert-manager Helm values configuration
+# Version: jetstack/cert-manager@1.13.x
+# Purpose: Manages X.509 certificate lifecycle for the AI-Powered Detection Platform
+
+# Global configuration
+global:
+  # Set log level from environment variable CERT_MANAGER_LOG_LEVEL
+  logLevel: 2
+  
+  # Leader election configuration for HA setup
+  leaderElection:
+    namespace: cert-manager
+  
+  # RBAC configuration
+  rbac:
+    create: true
+
+# Install Custom Resource Definitions
+installCRDs: true
+
+# High availability configuration
+replicaCount: 3
+
+# Resource allocation for cert-manager controller
+resources:
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+# Prometheus monitoring integration
+prometheus:
+  enabled: true
+  servicemonitor:
+    enabled: true
+    interval: "30s"
+
+# Webhook configuration for API validation
+webhook:
+  enabled: true
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+  # Secure port for webhook operations
+  securePort: 10250
+  hostNetwork: false
+
+# CA injector configuration for automatic certificate injection
+cainjector:
+  enabled: true
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+# Startup API check configuration
+startupapicheck:
+  enabled: true
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "100m"
+      memory: "128Mi"
+
+# DNS configuration for ACME DNS01 challenges
+podDnsPolicy: "ClusterFirst"
+podDnsConfig:
+  nameservers:
+    - "8.8.8.8"
+    - "1.1.1.1"
+
+# Additional arguments for cert-manager controller
+extraArgs:
+  - "--dns01-recursive-nameservers=8.8.8.8:53,1.1.1.1:53"
+  - "--dns01-recursive-nameservers-only"
+
+# Critical workload configuration
+tolerations:
+  - key: "CriticalAddonsOnly"
+    operator: "Exists"
+priorityClassName: "system-cluster-critical"
