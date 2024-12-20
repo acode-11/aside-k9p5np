@@ -1,0 +1,200 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Universal Detection Format Schema",
+  "description": "JSON Schema for security detection content with cross-platform compatibility",
+  "type": "object",
+  "definitions": {
+    "owner": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "name": { "type": "string", "minLength": 1 },
+        "email": { "type": "string", "format": "email" },
+        "organization": { "type": "string" }
+      },
+      "required": ["id", "name", "email"]
+    },
+    "platformCompatibility": {
+      "type": "object",
+      "properties": {
+        "platform_type": { "$ref": "./platform.schema.json#/type" },
+        "capabilities": { "$ref": "./platform.schema.json#/capabilities" },
+        "compatibility_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        }
+      },
+      "required": ["platform_type", "capabilities"]
+    }
+  },
+
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for the detection"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 200,
+      "pattern": "^[a-zA-Z0-9-_\\s]+$",
+      "description": "Human-readable name of the detection"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 2000,
+      "description": "Detailed description of the detection's purpose and behavior"
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100000,
+      "description": "Detection rule content in Universal Detection Format"
+    },
+    "platform_type": {
+      "type": "string",
+      "enum": ["SIEM", "EDR", "NSM"],
+      "description": "Primary platform type for the detection"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the detection"
+    },
+    "owner": {
+      "$ref": "#/definitions/owner",
+      "description": "Owner information for the detection"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "mitre_tactics": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "mitre_techniques": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^T\\d{4}(\\.\\d{3})?$" }
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "data_sources": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["mitre_tactics", "mitre_techniques", "severity"]
+    },
+    "quality_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Overall quality score based on validation results"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9-_]+$"
+      },
+      "maxItems": 20
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "performance_metrics": {
+      "type": "object",
+      "properties": {
+        "cpu_impact": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        },
+        "memory_impact": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        },
+        "average_execution_time": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": ["cpu_impact", "memory_impact"]
+    },
+    "validation_status": {
+      "type": "object",
+      "properties": {
+        "is_valid": { "type": "boolean" },
+        "last_validated": { "type": "string", "format": "date-time" },
+        "validation_errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" },
+              "severity": {
+                "type": "string",
+                "enum": ["error", "warning", "info"]
+              }
+            },
+            "required": ["code", "message", "severity"]
+          }
+        }
+      },
+      "required": ["is_valid", "last_validated"]
+    },
+    "platform_compatibility": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/platformCompatibility" },
+      "minItems": 1
+    },
+    "audit_trail": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["created", "updated", "validated", "deployed"]
+          },
+          "timestamp": { "type": "string", "format": "date-time" },
+          "user_id": { "type": "string", "format": "uuid" },
+          "details": { "type": "object" }
+        },
+        "required": ["action", "timestamp", "user_id"]
+      }
+    }
+  },
+
+  "required": [
+    "id",
+    "name",
+    "description",
+    "content",
+    "platform_type",
+    "version",
+    "owner",
+    "metadata",
+    "created_at",
+    "updated_at",
+    "validation_status",
+    "platform_compatibility"
+  ],
+
+  "additionalProperties": false
+}
