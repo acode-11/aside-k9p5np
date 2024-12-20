@@ -1,0 +1,177 @@
+# Detection Service Kubernetes Configuration
+# Version: 1.28+
+# Dependencies:
+# - Istio Service Mesh: 1.20+
+# - Prometheus Monitoring
+# - ConfigMaps and Secrets
+
+---
+# Detection Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: detection-service
+  namespace: detection-platform
+  labels:
+    app: detection-service
+    component: backend
+    app.kubernetes.io/name: detection-service
+    app.kubernetes.io/part-of: ai-detection-platform
+  annotations:
+    description: "Detection service for CRUD operations on security detections"
+    version: "1.0.0"
+spec:
+  replicas: 3  # Initial replica count for high availability
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0  # Zero-downtime deployments
+  selector:
+    matchLabels:
+      app: detection-service
+  template:
+    metadata:
+      labels:
+        app: detection-service
+        component: backend
+      annotations:
+        sidecar.istio.io/inject: "true"  # Enable Istio service mesh
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 2000
+      containers:
+      - name: detection-service
+        image: detection-service:latest
+        imagePullPolicy: Always
+        ports:
+        - name: grpc
+          containerPort: 50051
+        - name: metrics
+          containerPort: 9090
+        resources:
+          requests:
+            cpu: "1000m"    # 1 vCPU
+            memory: "2Gi"   # 2GB RAM
+          limits:
+            cpu: "2000m"    # 2 vCPU
+            memory: "4Gi"   # 4GB RAM
+        env:
+        - name: ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: detection-service-config
+              key: environment
+        - name: MONGODB_URI
+          valueFrom:
+            secretKeyRef:
+              name: database-credentials
+              key: MONGODB_URI
+        livenessProbe:
+          grpc:
+            port: 50051
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          grpc:
+            port: 50051
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+        - name: tmp-volume
+          mountPath: /tmp
+      volumes:
+      - name: config-volume
+        configMap:
+          name: detection-service-config
+      - name: tmp-volume
+        emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - detection-service
+              topologyKey: kubernetes.io/hostname
+
+---
+# Detection Service - Service Definition
+apiVersion: v1
+kind: Service
+metadata:
+  name: detection-service
+  namespace: detection-platform
+  labels:
+    app: detection-service
+    component: backend
+spec:
+  type: ClusterIP
+  ports:
+  - name: grpc
+    port: 50051
+    targetPort: grpc
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: metrics
+    protocol: TCP
+  selector:
+    app: detection-service
+
+---
+# Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: detection-service-hpa
+  namespace: detection-platform
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: detection-service
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 60
