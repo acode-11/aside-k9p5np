@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-service-config
+  namespace: detection-platform
+  labels:
+    app: ai-service
+    component: config
+    environment: ${ENVIRONMENT}
+  annotations:
+    description: "AI service configuration for model and API settings"
+    version: "1.0.0"
+    last-updated: "2023-11-15"
+data:
+  # AI Model Settings
+  model_settings.json: |
+    {
+      "base_model": "gpt-4",
+      "detection_head": "custom-transformer",
+      "translation_model": "bert-base",
+      "optimization_model": "rl-optimizer",
+      "temperature": 0.7,
+      "max_tokens": 2048,
+      "quality_threshold": 0.95
+    }
+  
+  # API Settings
+  api_settings.json: |
+    {
+      "openai_api_version": "2023-11-01",
+      "timeout_seconds": 30,
+      "max_retries": 3,
+      "retry_delay": 1
+    }
+
+  # Auth Service Configuration
+  security.json: |
+    {
+      "passwordMinLength": 12,
+      "passwordMaxLength": 128,
+      "maxLoginAttempts": 5,
+      "lockoutDuration": 900,
+      "sessionTimeout": 3600,
+      "requireMFA": true
+    }
+
+  jwt.json: |
+    {
+      "algorithm": "RS256",
+      "accessTokenExpiry": "15m",
+      "refreshTokenExpiry": "7d",
+      "issuer": "ai-detection-platform",
+      "audience": "detection-platform-users"
+    }
+
+  oauth.json: |
+    {
+      "scopes": {
+        "google": ["email", "profile"],
+        "github": ["user:email"]
+      }
+    }
+
+  # Search Service Configuration
+  elasticsearch.json: |
+    {
+      "index_prefix": "detection-platform",
+      "number_of_shards": 5,
+      "number_of_replicas": 2,
+      "refresh_interval": 1,
+      "scroll_size": 1000,
+      "timeout": 30,
+      "retry_on_timeout": true,
+      "max_retries": 3
+    }
+
+  # Platform-wide Configuration
+  platform_settings.json: |
+    {
+      "siem": {
+        "accuracy_threshold": 0.99,
+        "false_positive_threshold": 0.05,
+        "performance_impact_threshold": "low"
+      },
+      "edr": {
+        "accuracy_threshold": 0.99,
+        "false_positive_threshold": 0.05,
+        "performance_impact_threshold": "low"
+      },
+      "nsm": {
+        "accuracy_threshold": 0.99,
+        "false_positive_threshold": 0.05,
+        "performance_impact_threshold": "low"
+      }
+    }
+
+  # Environment Variables
+  environment: ${ENVIRONMENT}
+  log_level: ${LOG_LEVEL}
