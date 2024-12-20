@@ -1,0 +1,62 @@
+# AI-Powered Detection Platform Crawler Configuration
+# Version: 1.0
+# Last Updated: 2023
+# Purpose: Define crawler access rules balancing SEO with security
+
+User-agent: *
+Crawl-delay: 10
+
+# Allow public content pages
+Allow: /
+Allow: /dashboard
+Allow: /detection-library
+Allow: /community
+Allow: /docs
+Allow: /blog
+Allow: /about
+
+# Block sensitive and private routes
+Disallow: /api/
+Disallow: /auth/
+Disallow: /settings
+Disallow: /analytics
+Disallow: /admin
+Disallow: /private
+Disallow: /user
+Disallow: /internal
+
+# Block specific API versions and endpoints
+Disallow: /api/v1/
+Disallow: /api/v2/
+Disallow: /api/beta/
+
+# Block authentication routes
+Disallow: /login
+Disallow: /signup
+Disallow: /reset-password
+Disallow: /verify
+
+# Block user-specific content
+Disallow: /profile
+Disallow: /notifications
+Disallow: /messages
+
+# Block enterprise features
+Disallow: /enterprise/
+Disallow: /billing/
+Disallow: /subscription/
+
+# Block development and test routes
+Disallow: /dev/
+Disallow: /test/
+Disallow: /staging/
+
+# Reference to XML sitemap for improved indexing
+Sitemap: /sitemap.xml
+
+# Clean URL parameters
+Disallow: /*?*
+
+# Prevent duplicate content indexing
+Disallow: /index.php
+Disallow: /index.html
