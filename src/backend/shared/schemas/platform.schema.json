@@ -1,0 +1,146 @@
+{
+  "type": "SIEM",
+  "name": "splunk-enterprise",
+  "version": "8.2.0",
+  "capabilities": [
+    {
+      "name": "search_query",
+      "description": "SPL (Splunk Processing Language) search query capability for detection rules",
+      "parameters": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "constraints": {
+            "pattern": "^[\\s\\S]{1,10000}$"
+          }
+        },
+        {
+          "name": "earliest_time",
+          "type": "string",
+          "required": false,
+          "default": "-24h",
+          "constraints": {
+            "pattern": "^-[0-9]+(s|m|h|d|w)$"
+          }
+        },
+        {
+          "name": "index",
+          "type": "array",
+          "required": false,
+          "constraints": {
+            "enum": ["main", "security", "windows", "network", "unix"]
+          }
+        }
+      ],
+      "constraints": {
+        "max_complexity": 100,
+        "max_depth": 10,
+        "allowed_operators": [
+          "AND", "OR", "NOT", 
+          "=", "!=", "<", ">", "<=", ">=",
+          "LIKE", "REGEX"
+        ],
+        "dependencies": [
+          {
+            "if": "index",
+            "then": ["sourcetype"]
+          }
+        ]
+      }
+    },
+    {
+      "name": "correlation_search",
+      "description": "Real-time correlation search for continuous monitoring",
+      "parameters": [
+        {
+          "name": "search",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "schedule",
+          "type": "string",
+          "required": true,
+          "constraints": {
+            "pattern": "^(\\*/)?[0-9]+(m|h)$"
+          }
+        },
+        {
+          "name": "alert_threshold",
+          "type": "number",
+          "required": true,
+          "constraints": {
+            "min": 1,
+            "max": 1000
+          }
+        }
+      ],
+      "constraints": {
+        "max_complexity": 50,
+        "max_depth": 5,
+        "allowed_operators": [
+          "stats", "eval", "where",
+          "table", "rename", "fields"
+        ]
+      }
+    }
+  ],
+  "validation_rules": {
+    "rules": [
+      {
+        "name": "valid_spl_syntax",
+        "pattern": "^[^\\|]*(?:\\|[^\\|]+)*$",
+        "message": "Invalid SPL syntax",
+        "severity": "error"
+      },
+      {
+        "name": "performance_check",
+        "pattern": "(?i)(?!.*\\b(all|global)\\b)",
+        "message": "Avoid using performance-intensive commands",
+        "severity": "warning"
+      },
+      {
+        "name": "field_extraction",
+        "pattern": "\\b(rex|extract|kvform)\\b",
+        "message": "Consider using field aliases for better performance",
+        "severity": "info"
+      }
+    ],
+    "max_size": 102400,
+    "syntax_patterns": [
+      {
+        "name": "pipe_command",
+        "regex": "\\|\\s*[\\w]+",
+        "description": "SPL pipe command"
+      },
+      {
+        "name": "function_call",
+        "regex": "\\w+\\([^)]*\\)",
+        "description": "SPL function call"
+      }
+    ],
+    "required_fields": [
+      "search",
+      "earliest_time",
+      "latest_time"
+    ]
+  },
+  "api_config": {
+    "auth_type": "oauth2",
+    "rate_limits": {
+      "requests_per_hour": 1000,
+      "concurrent_requests": 10,
+      "burst_limit": 50
+    },
+    "endpoints": {
+      "base_url": "https://api.splunk.example.com/v2",
+      "paths": {
+        "deploy": "/detections/deploy",
+        "validate": "/detections/validate",
+        "status": "/detections/status"
+      }
+    },
+    "sync_method": "push_pull"
+  }
+}
