@@ -1,0 +1,253 @@
+version: '3.9'
+
+# Service definitions
+services:
+  # API Gateway
+  api-gateway:
+    image: kong:3.4
+    container_name: api-gateway
+    ports:
+      - "8000:8000"  # Proxy
+      - "8443:8443"  # Proxy SSL
+      - "8001:8001"  # Admin API
+    environment:
+      KONG_DATABASE: "off"
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+    volumes:
+      - ./api-gateway/kong.yml:/usr/local/kong/declarative/kong.yml:ro
+    networks:
+      - detection_platform
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    mem_limit: 512M
+    cpus: 0.5
+
+  # Authentication Service
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: development
+        PORT: 3001
+    container_name: auth-service
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      AUTH_LOG_LEVEL: debug
+      JWT_SECRET: ${JWT_SECRET}
+      OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID}
+      OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET}
+    volumes:
+      - ./auth-service:/app
+      - /app/node_modules
+    networks:
+      - detection_platform
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health/auth"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    mem_limit: 1G
+    cpus: 1.0
+
+  # Detection Service
+  detection-service:
+    build:
+      context: ./detection-service
+      dockerfile: Dockerfile
+      args:
+        GO_VERSION: 1.21
+    container_name: detection-service
+    ports:
+      - "50051:50051"
+      - "9090:9090"
+    environment:
+      GIN_MODE: debug
+      GOMAXPROCS: "4"
+      METRICS_PORT: 9090
+    volumes:
+      - ./detection-service:/app
+    networks:
+      - detection_platform
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    mem_limit: 2G
+    cpus: 2.0
+
+  # AI Service
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+      args:
+        PYTHON_VERSION: "3.11"
+        POETRY_VERSION: "1.6.1"
+    container_name: ai-service
+    ports:
+      - "8000:8000"
+    environment:
+      PYTHONUNBUFFERED: 1
+      MODEL_PATH: /app/models
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    volumes:
+      - ./ai-service:/app
+      - ai_models:/app/models
+    networks:
+      - detection_platform
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    mem_limit: 4G
+    cpus: 2.0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-detection}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-detection123}
+      POSTGRES_DB: ${POSTGRES_DB:-detection_platform}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - detection_platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-detection}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    mem_limit: 2G
+    cpus: 1.0
+
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-admin123}
+      MONGO_INITDB_DATABASE: detection_platform
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - detection_platform
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    mem_limit: 2G
+    cpus: 1.0
+
+  # Redis Cache
+  redis:
+    image: redis:7.2-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - detection_platform
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    mem_limit: 1G
+    cpus: 0.5
+
+  # Elasticsearch
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    container_name: elasticsearch
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - detection_platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q 'status.*green\\|status.*yellow'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    mem_limit: 2G
+    cpus: 1.0
+
+# Volume definitions
+volumes:
+  postgres_data:
+    name: detection_platform_postgres_data
+  mongodb_data:
+    name: detection_platform_mongodb_data
+  redis_data:
+    name: detection_platform_redis_data
+  elasticsearch_data:
+    name: detection_platform_elasticsearch_data
+  ai_models:
+    name: detection_platform_ai_models
+
+# Network definitions
+networks:
+  detection_platform:
+    name: detection_platform_network
+    driver: bridge
+    internal: true
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
