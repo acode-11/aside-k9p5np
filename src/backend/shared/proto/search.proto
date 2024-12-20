@@ -1,0 +1,123 @@
+syntax = "proto3";
+
+package search.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+import "detection.proto";
+
+option go_package = "github.com/org/detection-platform/proto/search";
+
+// SearchQuery represents a natural language search request with advanced filtering
+message SearchQuery {
+  // Natural language query text
+  string query_text = 1;
+  
+  // Filter by specific platform types
+  repeated detection.v1.PlatformType platforms = 2;
+  
+  // Filter by detection tags
+  repeated string tags = 3;
+  
+  // Minimum quality score threshold (0-100)
+  double min_quality_score = 4;
+  
+  // Pagination: starting offset
+  int32 from = 5;
+  
+  // Pagination: number of results per page
+  int32 size = 6;
+  
+  // Whether to include highlighted matches
+  bool include_highlights = 7;
+  
+  // Additional key-value filters
+  map<string, string> filters = 8;
+}
+
+// SearchResult represents search results with performance metrics
+message SearchResult {
+  // List of matching search hits
+  repeated SearchHit hits = 1;
+  
+  // Total number of matches found
+  int64 total = 2;
+  
+  // Time taken to execute search in milliseconds
+  int32 took_ms = 3;
+  
+  // Highest relevance score in results
+  double max_score = 4;
+  
+  // Whether search timed out
+  bool timed_out = 5;
+  
+  // Aggregated statistics from search results
+  map<string, int64> aggregations = 6;
+}
+
+// SearchHit represents an individual search result with relevance data
+message SearchHit {
+  // Matched detection content
+  detection.v1.Detection detection = 1;
+  
+  // Relevance score for this result
+  double score = 2;
+  
+  // Highlighted text snippets
+  map<string, string> highlights = 3;
+  
+  // Detailed relevance scoring factors
+  map<string, double> relevance_factors = 4;
+}
+
+// SearchSuggestion represents auto-complete suggestions
+message SearchSuggestion {
+  // Suggested text completion
+  string text = 1;
+  
+  // Relevance score for suggestion
+  double score = 2;
+  
+  // Type of suggestion (detection, tag, platform)
+  string type = 3;
+  
+  // Additional suggestion metadata
+  map<string, string> metadata = 4;
+}
+
+// SearchStats represents search performance metrics
+message SearchStats {
+  // Average search latency in milliseconds
+  double avg_latency_ms = 1;
+  
+  // 95th percentile search latency
+  double p95_latency_ms = 2;
+  
+  // Total number of searches performed
+  int64 total_searches = 3;
+  
+  // Number of timed out searches
+  int64 timeout_count = 4;
+  
+  // Cache hit ratio (0-1)
+  double cache_hit_ratio = 5;
+  
+  // Search quality metrics
+  map<string, double> quality_metrics = 6;
+}
+
+// SearchService provides natural language search capabilities
+service SearchService {
+  // Performs a natural language search across detections
+  rpc Search(SearchQuery) returns (SearchResult) {}
+  
+  // Retrieves auto-complete suggestions for partial queries
+  rpc GetSuggestions(SearchQuery) returns (stream SearchSuggestion) {}
+  
+  // Refreshes the search index for updated content
+  rpc RefreshIndex(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  
+  // Retrieves search performance statistics
+  rpc GetSearchStats(google.protobuf.Empty) returns (SearchStats) {}
+}
