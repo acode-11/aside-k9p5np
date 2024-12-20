@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <!-- Character encoding and viewport configuration -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <!-- Primary meta tags -->
+    <title>AI-Powered Detection Platform</title>
+    <meta name="description" content="AI-Powered Detection Platform for security detection content management and collaboration">
+    <meta name="theme-color" content="#1976D2">
+    
+    <!-- Open Graph meta tags for social sharing -->
+    <meta property="og:title" content="AI-Powered Detection Platform">
+    <meta property="og:description" content="Collaborative platform for security detection content management powered by AI">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="%PUBLIC_URL%">
+    <meta property="og:image" content="%PUBLIC_URL%/og-image.png">
+    
+    <!-- iOS PWA meta tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="#1976D2">
+    <meta name="apple-mobile-web-app-title" content="Detection Platform">
+    
+    <!-- PWA manifest and icons -->
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json">
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico">
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png">
+    
+    <!-- Preload critical fonts -->
+    <link 
+        rel="preload" 
+        href="/assets/fonts/Inter/Inter-Regular.woff2" 
+        as="font" 
+        type="font/woff2" 
+        crossorigin="anonymous"
+    >
+    <link 
+        rel="preload" 
+        href="/assets/fonts/Inter/Inter-Medium.woff2" 
+        as="font" 
+        type="font/woff2" 
+        crossorigin="anonymous"
+    >
+    <link 
+        rel="preload" 
+        href="/assets/fonts/RobotoMono/RobotoMono-Regular.woff2" 
+        as="font" 
+        type="font/woff2" 
+        crossorigin="anonymous"
+    >
+    
+    <!-- Resource hints for external resources -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- Font definitions -->
+    <style>
+        @font-face {
+            font-family: 'Inter';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('/assets/fonts/Inter/Inter-Regular.woff2') format('woff2');
+        }
+        
+        @font-face {
+            font-family: 'Inter';
+            font-style: normal;
+            font-weight: 500;
+            font-display: swap;
+            src: url('/assets/fonts/Inter/Inter-Medium.woff2') format('woff2');
+        }
+        
+        @font-face {
+            font-family: 'Roboto Mono';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('/assets/fonts/RobotoMono/RobotoMono-Regular.woff2') format('woff2');
+        }
+    </style>
+    
+    <!-- Initial theme setup to prevent flash -->
+    <script>
+        (function() {
+            try {
+                const mode = localStorage.getItem('themeMode') || 'light';
+                document.documentElement.setAttribute('data-theme', mode);
+                if (mode === 'dark') {
+                    document.documentElement.style.backgroundColor = '#121212';
+                }
+            } catch (e) {
+                console.error('Failed to set initial theme:', e);
+            }
+        })();
+    </script>
+</head>
+<body>
+    <!-- Root element for React application -->
+    <div id="root" role="application"></div>
+    
+    <!-- Fallback for disabled JavaScript -->
+    <noscript>
+        <div style="padding: 20px; text-align: center;">
+            <h1>JavaScript Required</h1>
+            <p>Please enable JavaScript to use the AI-Powered Detection Platform.</p>
+        </div>
+    </noscript>
+    
+    <!-- Entry point script -->
+    <script type="module" src="/src/index.tsx" defer></script>
+    
+    <!-- Service worker registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registered:', registration);
+                    })
+                    .catch(error => {
+                        console.error('ServiceWorker registration failed:', error);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>
