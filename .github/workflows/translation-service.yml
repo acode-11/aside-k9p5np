@@ -1,0 +1,182 @@
+name: Translation Service CI/CD
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/backend/translation-service/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/backend/translation-service/**'
+
+env:
+  SERVICE_NAME: translation-service
+  DOCKER_REGISTRY: ghcr.io
+  GO_VERSION: '1.21'
+  DOCKER_BUILDKIT: '1'
+  BUILDX_PLATFORMS: linux/amd64,linux/arm64
+
+jobs:
+  test:
+    name: Test and Code Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GO111MODULE: 'on'
+      CGO_ENABLED: '0'
+      GOOS: linux
+      GOARCH: amd64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: src/backend/translation-service/go.sum
+
+      - name: Verify dependencies
+        run: |
+          cd src/backend/translation-service
+          go mod download
+          go mod verify
+
+      - name: Run unit tests
+        run: |
+          cd src/backend/translation-service
+          go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+
+      - name: Upload test coverage
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-coverage
+          path: src/backend/translation-service/coverage.txt
+          retention-days: 14
+
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Snyk scan
+        uses: snyk/actions/golang@v3
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@v1
+        with:
+          scan-type: 'fs'
+          scan-ref: 'src/backend/translation-service'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'trivy-scan'
+
+  build-push:
+    name: Build and Push Container
+    runs-on: ubuntu-latest
+    needs: [test, security-scan]
+    timeout-minutes: 30
+    env:
+      DOCKER_BUILDKIT: '1'
+      BUILDX_PROGRESS: plain
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: ${{ env.BUILDX_PLATFORMS }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: src/backend/translation-service
+          file: src/backend/translation-service/Dockerfile
+          platforms: ${{ env.BUILDX_PLATFORMS }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ env.DOCKER_REGISTRY }}/${{ github.repository }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+            ${{ env.DOCKER_REGISTRY }}/${{ github.repository }}/${{ env.SERVICE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            GO_VERSION=${{ env.GO_VERSION }}
+            BUILD_DATE=${{ steps.date.outputs.date }}
+            GIT_SHA=${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=MIT
+
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build-push
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: https://api.detection-platform.com
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure Kubernetes
+        uses: azure/k8s-set-context@v3
+        with:
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Update deployment
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          kubectl set image deployment/translation-service \
+            translation-service=${{ env.DOCKER_REGISTRY }}/${{ github.repository }}/${{ env.SERVICE_NAME }}:${IMAGE_TAG} \
+            -n default
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/translation-service -n default --timeout=300s
+
+      - name: Run smoke tests
+        run: |
+          # Wait for service to be ready
+          sleep 30
+          # Verify service health endpoint
+          curl -f https://api.detection-platform.com/translation/health || exit 1
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          kubectl rollout undo deployment/translation-service -n default
