@@ -1,0 +1,145 @@
+# Search Service Deployment Configuration
+# Version: 1.0.0
+# Kubernetes Version: v1.28.0
+# Dependencies:
+# - Elasticsearch v8.11.0
+# - Python v3.11
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search-service
+  namespace: detection-platform
+  labels:
+    app: search-service
+    component: backend
+    version: 1.0.0
+    app.kubernetes.io/name: search-service
+    app.kubernetes.io/part-of: ai-detection-platform
+  annotations:
+    kubernetes.io/change-cause: "Initial deployment of search service"
+    description: "Natural language search service using Elasticsearch"
+spec:
+  # Horizontal scaling with 3 replicas for high availability
+  replicas: 3
+  # Rolling update strategy for zero-downtime deployments
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: search-service
+  template:
+    metadata:
+      labels:
+        app: search-service
+        component: backend
+        version: 1.0.0
+      annotations:
+        # Prometheus metrics scraping configuration
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+        # Config checksum for automatic pod updates on config changes
+        checksum/config: "${CONFIG_CHECKSUM}"
+    spec:
+      # Security context for running as non-root
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: search-service
+        image: search-service:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        - name: metrics
+          containerPort: 8001
+          protocol: TCP
+        # Resource limits to ensure performance
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+        env:
+        # Elasticsearch configuration
+        - name: ELASTICSEARCH_HOSTS
+          valueFrom:
+            configMapKeyRef:
+              name: search-service-config
+              key: elasticsearch_hosts
+        - name: ELASTICSEARCH_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: elasticsearch-credentials
+              key: ELASTICSEARCH_USERNAME
+        - name: ELASTICSEARCH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: elasticsearch-credentials
+              key: ELASTICSEARCH_PASSWORD
+        - name: ELASTICSEARCH_VERSION
+          value: "8.11.0"
+        # Performance tuning parameters
+        - name: MAX_CONNECTIONS
+          value: "100"
+        - name: CONNECTION_TIMEOUT
+          value: "5"
+        - name: SEARCH_TIMEOUT
+          value: "2"  # 2s search response time requirement
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /startup
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 2
+          successThreshold: 1
+          failureThreshold: 30
+      # Pod distribution and anti-affinity rules
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: search-service
+              topologyKey: kubernetes.io/hostname
+      # Cross-zone distribution
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: search-service
