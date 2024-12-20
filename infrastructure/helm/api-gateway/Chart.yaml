@@ -1,0 +1,35 @@
+apiVersion: v2
+name: api-gateway
+description: API Gateway service for the AI-Powered Detection Platform using Kong
+type: application
+version: 1.0.0
+appVersion: "2.8.1"
+
+# Keywords for chart discovery and categorization
+keywords:
+  - api-gateway
+  - kong
+  - microservices
+  - security
+
+# Chart maintainers
+maintainers:
+  - name: Platform Team
+    email: platform@detection-platform.com
+
+# Chart dependencies
+dependencies:
+  - name: kong
+    version: 2.8.1
+    repository: https://charts.konghq.com
+    condition: kong.enabled
+  - name: redis
+    version: 17.x
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled
+
+# Additional metadata annotations
+annotations:
+  artifacthub.io/changes: "Initial release of API Gateway chart"
+  artifacthub.io/containsSecurityUpdates: "true"
+  artifacthub.io/prerelease: "false"
