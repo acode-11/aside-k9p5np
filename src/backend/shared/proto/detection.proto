@@ -1,0 +1,178 @@
+syntax = "proto3";
+
+package detection.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/org/detection-platform/proto/detection";
+
+// PlatformType represents supported security platforms for detection content
+enum PlatformType {
+  // Default unspecified value
+  PLATFORM_TYPE_UNSPECIFIED = 0;
+  // Security Information and Event Management platforms
+  PLATFORM_TYPE_SIEM = 1;
+  // Endpoint Detection and Response platforms
+  PLATFORM_TYPE_EDR = 2;
+  // Network Security Monitoring platforms
+  PLATFORM_TYPE_NSM = 3;
+}
+
+// Severity levels for validation issues
+enum Severity {
+  // Default unspecified value
+  SEVERITY_UNSPECIFIED = 0;
+  // Informational messages
+  SEVERITY_INFO = 1;
+  // Warning messages that don't prevent deployment
+  SEVERITY_WARNING = 2;
+  // Critical errors that must be fixed
+  SEVERITY_ERROR = 3;
+}
+
+// User represents detection ownership and authorship information
+message User {
+  // Unique identifier for the user
+  string id = 1;
+  // Username for display and reference
+  string username = 2;
+  // User's email address
+  string email = 3;
+}
+
+// Detection represents a security detection with comprehensive metadata
+message Detection {
+  // Unique identifier for the detection
+  string id = 1;
+  // Human-readable name of the detection
+  string name = 2;
+  // Detailed description of the detection's purpose and behavior
+  string description = 3;
+  // Actual detection content/logic in Universal Detection Format
+  string content = 4;
+  // Target platform type for this detection
+  PlatformType platform_type = 5;
+  // Semantic version of the detection
+  string version = 6;
+  // User who owns/created the detection
+  User owner = 7;
+  // Additional metadata key-value pairs
+  map<string, string> metadata = 8;
+  // Quality score based on validation results (0-100)
+  double quality_score = 9;
+  // List of tags for categorization
+  repeated string tags = 10;
+  // Timestamp when detection was created
+  google.protobuf.Timestamp created_at = 11;
+  // Timestamp when detection was last updated
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+// DetectionVersion represents version control information
+message DetectionVersion {
+  // Unique identifier for this version
+  string version_id = 1;
+  // Reference to parent detection
+  string detection_id = 2;
+  // Version-specific detection content
+  string content = 3;
+  // Description of changes in this version
+  string changes = 4;
+  // Author of this version
+  User author = 5;
+  // Timestamp when version was created
+  google.protobuf.Timestamp created_at = 6;
+}
+
+// ValidationIssue represents a specific validation problem
+message ValidationIssue {
+  // Unique error/warning code
+  string code = 1;
+  // Detailed description of the issue
+  string message = 2;
+  // Severity level of the issue
+  Severity severity = 3;
+}
+
+// ValidationResult represents comprehensive validation output
+message ValidationResult {
+  // Reference to validated detection
+  string detection_id = 1;
+  // Platform type validated against
+  PlatformType platform_type = 2;
+  // List of validation issues found
+  repeated ValidationIssue issues = 3;
+  // Estimated performance impact (low/medium/high)
+  string performance_impact = 4;
+  // Estimated false positive rate (0-1)
+  double false_positive_rate = 5;
+  // Timestamp when validation was performed
+  google.protobuf.Timestamp validated_at = 6;
+}
+
+// Request message for creating a new detection
+message CreateDetectionRequest {
+  // Detection to create
+  Detection detection = 1;
+}
+
+// Request message for retrieving a detection
+message GetDetectionRequest {
+  // ID of detection to retrieve
+  string detection_id = 1;
+}
+
+// Request message for updating a detection
+message UpdateDetectionRequest {
+  // Updated detection content
+  Detection detection = 1;
+}
+
+// Request message for listing detections
+message ListDetectionsRequest {
+  // Maximum number of detections to return
+  int32 page_size = 1;
+  // Token for pagination
+  string page_token = 2;
+  // Optional platform type filter
+  PlatformType platform_type = 3;
+  // Optional tag filters
+  repeated string tags = 4;
+}
+
+// Response message for listing detections
+message ListDetectionsResponse {
+  // List of detections
+  repeated Detection detections = 1;
+  // Token for next page
+  string next_page_token = 2;
+  // Total count of detections matching filters
+  int32 total_count = 3;
+}
+
+// Request message for validating a detection
+message ValidateDetectionRequest {
+  // Detection content to validate
+  string content = 1;
+  // Target platform type
+  PlatformType platform_type = 2;
+}
+
+// DetectionService provides comprehensive detection management operations
+service DetectionService {
+  // Creates a new detection
+  rpc CreateDetection(CreateDetectionRequest) returns (Detection);
+  
+  // Retrieves a detection by ID
+  rpc GetDetection(GetDetectionRequest) returns (Detection);
+  
+  // Updates an existing detection
+  rpc UpdateDetection(UpdateDetectionRequest) returns (Detection);
+  
+  // Lists detections with optional filtering
+  rpc ListDetections(ListDetectionsRequest) returns (ListDetectionsResponse);
+  
+  // Validates detection content against platform requirements
+  rpc ValidateDetection(ValidateDetectionRequest) returns (ValidationResult);
+}
