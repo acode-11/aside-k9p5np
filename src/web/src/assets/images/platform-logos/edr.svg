@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" 
+    role="img" aria-label="Endpoint Detection and Response Platform">
+    <title>EDR Platform</title>
+    <desc>Icon representing Endpoint Detection and Response security platform</desc>
+    
+    <!-- Shield base representing endpoint protection -->
+    <path d="M12 2L3 6V11C3 16.55 6.84 21.74 12 23C17.16 21.74 21 16.55 21 11V6L12 2Z" 
+        fill="#1976D2" opacity="0.9"/>
+    
+    <!-- Network nodes representing endpoint connections -->
+    <circle cx="12" cy="12" r="2.5" fill="#424242"/>
+    <circle cx="8" cy="10" r="1.5" fill="#424242"/>
+    <circle cx="16" cy="10" r="1.5" fill="#424242"/>
+    <circle cx="8" cy="14" r="1.5" fill="#424242"/>
+    <circle cx="16" cy="14" r="1.5" fill="#424242"/>
+    
+    <!-- Connection lines representing detection and response -->
+    <path d="M12 9.5L8 10M12 9.5L16 10M12 14.5L8 14M12 14.5L16 14M8 10L8 14M16 10L16 14" 
+        stroke="#424242" stroke-width="1" stroke-linecap="round"/>
+    
+    <!-- Pulse ring animation for active monitoring -->
+    <circle cx="12" cy="12" r="6" stroke="#1976D2" stroke-width="0.5" fill="none">
+        <animate attributeName="r" from="6" to="8"
+            dur="2s" begin="0s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" from="1" to="0"
+            dur="2s" begin="0s" repeatCount="indefinite"/>
+    </circle>
+</svg>
