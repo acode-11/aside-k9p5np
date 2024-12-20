@@ -1,0 +1,187 @@
+# Detection Service CI/CD Pipeline
+# Version: 1.0.0
+# Dependencies:
+# - Go 1.21+
+# - Docker BuildX
+# - Trivy Scanner
+# - Kubernetes Tooling
+
+name: Detection Service CI/CD
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/backend/detection-service/**'
+      - '.github/workflows/detection-service.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/backend/detection-service/**'
+  workflow_dispatch:
+
+env:
+  GO_VERSION: '1.21'
+  DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
+  IMAGE_NAME: detection-service
+  IMAGE_TAG: ${{ github.sha }}
+  IMAGE_SIZE_LIMIT: 150 # MB
+  TRIVY_SEVERITY: 'HIGH,CRITICAL'
+  TEST_COVERAGE_THRESHOLD: 80
+
+jobs:
+  test:
+    name: Test and Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Download dependencies
+        working-directory: src/backend/detection-service
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Run unit tests with coverage
+        working-directory: src/backend/detection-service
+        run: |
+          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+          go tool cover -func=coverage.out
+
+      - name: Verify coverage threshold
+        working-directory: src/backend/detection-service
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          if (( $(echo "$COVERAGE < ${{ env.TEST_COVERAGE_THRESHOLD }}" | bc -l) )); then
+            echo "Test coverage ($COVERAGE%) is below threshold (${{ env.TEST_COVERAGE_THRESHOLD }}%)"
+            exit 1
+          fi
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: src/backend/detection-service/coverage.out
+
+  build:
+    name: Build and Scan
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          buildkitd-flags: --debug
+
+      - name: Login to container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: src/backend/detection-service
+          file: src/backend/detection-service/Dockerfile
+          push: true
+          tags: |
+            ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+          build-args: |
+            GO_VERSION=${{ env.GO_VERSION }}
+            BUILD_VERSION=${{ github.ref }}
+            BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+            GIT_COMMIT=${{ github.sha }}
+
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@0.14.0
+        with:
+          image: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: ${{ env.TRIVY_SEVERITY }}
+
+      - name: Check image size
+        run: |
+          SIZE=$(docker image inspect ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} --format='{{.Size}}')
+          SIZE_MB=$(echo "scale=2; $SIZE/1024/1024" | bc)
+          if (( $(echo "$SIZE_MB > ${{ env.IMAGE_SIZE_LIMIT }}" | bc -l) )); then
+            echo "Image size ($SIZE_MB MB) exceeds limit (${{ env.IMAGE_SIZE_LIMIT }} MB)"
+            exit 1
+          fi
+
+  deploy:
+    name: Deploy to Production
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency: production_environment
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+          context: production
+
+      - name: Update deployment image
+        run: |
+          kubectl set image deployment/detection-service \
+            detection-service=${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
+            -n detection-platform
+
+      - name: Verify deployment rollout
+        run: |
+          kubectl rollout status deployment/detection-service -n detection-platform --timeout=300s
+
+      - name: Verify service health
+        run: |
+          # Wait for pods to be ready
+          sleep 30
+          # Check if minimum replicas are available
+          AVAILABLE_REPLICAS=$(kubectl get deployment detection-service -n detection-platform -o jsonpath='{.status.availableReplicas}')
+          if [ "$AVAILABLE_REPLICAS" -lt 3 ]; then
+            echo "Insufficient replicas available: $AVAILABLE_REPLICAS/3"
+            exit 1
+          fi
+          # Verify health endpoint
+          POD_NAME=$(kubectl get pods -n detection-platform -l app=detection-service -o jsonpath='{.items[0].metadata.name}')
+          kubectl exec $POD_NAME -n detection-platform -- wget --spider --quiet http://localhost:9090/health
+
+      - name: Configure monitoring
+        run: |
+          kubectl apply -f src/backend/k8s/detection-service-deployment.yaml -n detection-platform
+
+      - name: Notify deployment status
+        if: always()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { job, conclusion } = context;
+            const status = conclusion === 'success' ? '✅' : '❌';
+            const message = `${status} Detection Service deployment to production ${conclusion}`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: message
+            });
