@@ -1,0 +1,72 @@
+# This file defines mandatory reviewers for different components of the system
+# Format: pattern    owner1 owner2 ...
+
+# Global ownership - Platform leads are the default owners for unspecified files
+*    @platform-leads
+
+# Backend Services
+# AI Service - Requires both AI and backend expertise
+src/backend/ai-service/**    @ai-team @backend-team
+
+# Authentication Service - Requires security team review
+src/backend/auth-service/**    @security-team @backend-team
+
+# Detection Service - Combines detection and backend expertise
+src/backend/detection-service/**    @detection-team @backend-team
+
+# Translation Service - Cross-platform detection conversion
+src/backend/translation-service/**    @detection-team @backend-team
+
+# Search Service - Detection discovery functionality
+src/backend/search-service/**    @search-team @backend-team
+
+# Collaboration Service - Community features
+src/backend/collaboration-service/**    @collaboration-team @backend-team
+
+# Frontend Application
+src/web/**    @frontend-team
+
+# Infrastructure and DevOps
+infrastructure/**    @devops-team
+**/Dockerfile    @devops-team
+.github/workflows/**    @devops-team @platform-leads
+
+# Shared Components
+src/backend/shared/**    @backend-team @platform-leads
+
+# Database
+src/backend/db/migrations/**    @backend-team @database-team
+
+# API Definitions
+**/*.proto    @backend-team @platform-leads
+
+# Security Configuration
+**/security/**    @security-team
+
+# Documentation ownership follows component ownership
+docs/backend/**    @backend-team
+docs/frontend/**    @frontend-team
+docs/infrastructure/**    @devops-team
+docs/security/**    @security-team
+
+# Test ownership follows component ownership
+test/backend/**    @backend-team
+test/frontend/**    @frontend-team
+test/infrastructure/**    @devops-team
+test/security/**    @security-team
+
+# Configuration files require platform oversight
+*.yaml    @platform-leads
+*.yml    @platform-leads
+*.json    @platform-leads
+
+# Build and dependency files
+package.json    @platform-leads @frontend-team
+go.mod    @platform-leads @backend-team
+requirements.txt    @platform-leads @backend-team
+
+# Root level configuration requires platform leads approval
+/*.md    @platform-leads
+/*.yml    @platform-leads
+/*.yaml    @platform-leads
+/*.json    @platform-leads
