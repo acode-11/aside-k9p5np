@@ -1,0 +1,176 @@
+# GitHub Actions workflow for Web CI/CD
+# Version: 1.0.0
+# Handles building, testing, and deploying the React frontend application
+# with enhanced security, performance optimization, and AWS infrastructure deployment
+
+name: Web CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'src/web/**'
+      - '.github/workflows/web.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'src/web/**'
+      - '.github/workflows/web.yml'
+
+env:
+  NODE_VERSION: '20.x'
+  WORKING_DIRECTORY: src/web
+  AWS_REGION: us-east-1
+
+jobs:
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: javascript
+          queries: security-extended
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/package-lock.json
+
+      - name: Snyk Security Scan
+        uses: snyk/actions/node@v0.4.0
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --all-projects
+
+      - name: Check for Secrets
+        run: |
+          npm install -g detect-secrets
+          detect-secrets scan ${{ env.WORKING_DIRECTORY }}
+
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIRECTORY }}/package-lock.json
+
+      - name: Cache Dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.npm
+            node_modules/.cache
+            ${{ env.WORKING_DIRECTORY }}/node_modules
+            ${{ env.WORKING_DIRECTORY }}/.next/cache
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Install Dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm ci
+
+      - name: Lint Code
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          npm run lint
+          npm run type-check
+
+      - name: Run Unit Tests
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          npm run test:ci -- --coverage --maxWorkers=2 --ci
+        env:
+          CI: true
+
+      - name: Build Application
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-output
+          path: ${{ env.WORKING_DIRECTORY }}/dist
+          retention-days: 7
+
+  deploy:
+    name: Deploy
+    needs: [security-scan, build-and-test]
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://detection-platform.example.com
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: build-output
+          path: dist
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync dist s3://${{ secrets.S3_BUCKET }} \
+            --delete \
+            --cache-control "public, max-age=31536000" \
+            --exclude "index.html" \
+            --exclude "*.json"
+          
+          aws s3 cp dist/index.html s3://${{ secrets.S3_BUCKET }}/index.html \
+            --cache-control "public, max-age=0, must-revalidate"
+
+      - name: Invalidate CloudFront Cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+
+      - name: Health Check
+        run: |
+          HEALTH_CHECK_URL="https://detection-platform.example.com/health"
+          MAX_RETRIES=30
+          RETRY_INTERVAL=10
+          
+          for i in $(seq 1 $MAX_RETRIES); do
+            if curl -s -f "$HEALTH_CHECK_URL"; then
+              echo "Health check passed"
+              exit 0
+            fi
+            echo "Health check failed, retrying in $RETRY_INTERVAL seconds..."
+            sleep $RETRY_INTERVAL
+          done
+          
+          echo "Health check failed after $MAX_RETRIES attempts"
+          exit 1
