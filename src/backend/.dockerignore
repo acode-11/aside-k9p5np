@@ -1,0 +1,152 @@
+# Version Control
+**/.git
+**/.gitignore
+**/.gitattributes
+**/.svn
+**/.hg
+
+# Environment & Secrets
+**/.env*
+**/*.pem
+**/*.key
+**/.npmrc
+**/.pip
+**/.aws
+**/.kube
+**/.docker
+**/.config
+
+# Dependencies
+**/node_modules
+**/venv
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/vendor
+**/.venv
+**/.poetry
+**/.npm
+**/*.egg-info
+**/poetry.lock
+**/*.go.sum
+**/go.sum
+**/package-lock.json
+**/yarn.lock
+
+# Build & Artifacts
+**/dist
+**/build
+**/*.exe
+**/*.dll
+**/*.so
+**/*.dylib
+**/*.bin
+**/tmp
+**/.next
+**/.nuxt
+**/.output
+
+# Testing & Coverage
+**/tests
+**/__tests__
+**/*.test.*
+**/*.spec.*
+**/coverage
+**/.coverage
+**/.pytest_cache
+**/htmlcov
+**/jest.config.*
+**/pytest.ini
+**/test-results
+
+# Documentation
+**/README.md
+**/CHANGELOG.md
+**/LICENSE
+**/docs
+**/swagger
+**/api-docs
+**/*.md
+**/*.rst
+
+# Development Tools
+**/.vscode
+**/.idea
+**/.devcontainer
+**/.editorconfig
+**/.eslintrc*
+**/.prettierrc*
+**/.pylintrc
+**/tslint.json
+**/.babelrc
+**/.dockerignore
+
+# Logs & Debug
+**/*.log
+**/logs
+**/.debug
+**/debug.log
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+
+# Cache
+**/.cache
+**/.parcel-cache
+**/.rollup.cache
+**/.webpack
+**/.eslintcache
+**/.stylelintcache
+
+# Docker
+**/docker-compose*.yml
+**/docker-compose*.yaml
+**/Dockerfile*
+
+# Platform-specific
+**/.DS_Store
+**/Thumbs.db
+**/desktop.ini
+
+# Service-specific size optimizations
+# AI Service (500MB limit)
+ai-service/models/*
+!ai-service/models/.gitkeep
+ai-service/data/*
+!ai-service/data/.gitkeep
+ai-service/notebooks
+ai-service/experiments
+
+# API Services (150MB limit)
+**/proto
+**/schemas
+**/migrations/*.sql
+**/fixtures
+
+# Monitoring & Metrics
+**/metrics
+**/prometheus
+**/grafana
+**/.profile
+**/bench
+**/benchmarks
+
+# Temporary & Backup
+**/*~
+**/*.bak
+**/*.swp
+**/*.swo
+**/.history
+**/backup
+**/*.backup
+
+# Security & Compliance
+**/security
+**/audit
+**/compliance
+**/*.cert
+**/*.crt
+**/*.p12
+**/*.pfx
+**/*.csr
