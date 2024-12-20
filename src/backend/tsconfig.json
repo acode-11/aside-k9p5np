@@ -1,0 +1,78 @@
+{
+  "compilerOptions": {
+    // ECMAScript Target and Module Configuration
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["ES2022"],
+    
+    // Output Configuration
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "composite": true,
+    "declaration": true,
+    "sourceMap": true,
+    "incremental": true,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    
+    // Strict Type Checking
+    "strict": true,
+    "noImplicitAny": true,
+    "noImplicitThis": true,
+    "noImplicitReturns": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictPropertyInitialization": true,
+    
+    // Code Quality
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "forceConsistentCasingInFileNames": true,
+    
+    // Module Resolution and Imports
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    
+    // Decorator Support
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    
+    // Path Aliases
+    "paths": {
+      "@/*": ["./src/*"],
+      "@auth/*": ["./auth-service/src/*"],
+      "@collab/*": ["./collaboration-service/src/*"],
+      "@common/*": ["./common/src/*"]
+    }
+  },
+  
+  // Project References
+  "references": [
+    { "path": "./auth-service" },
+    { "path": "./collaboration-service" }
+  ],
+  
+  // File Inclusion/Exclusion
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.json",
+    "common/**/*.ts",
+    "auth-service/src/**/*.ts",
+    "collaboration-service/src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/__tests__/*",
+    "coverage"
+  ],
+  
+  // TypeScript Version Note
+  "typescript": {
+    "version": "5.0.0"
+  }
+}
