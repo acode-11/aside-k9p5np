@@ -1,0 +1,169 @@
+# Collaboration Service Deployment Configuration
+# Version: 1.0.0
+# Purpose: Manages the real-time collaboration service deployment with WebSocket support
+# Dependencies:
+# - configmaps.yaml: collaboration-service-config
+# - secrets.yaml: collaboration-service-secrets
+# Kubernetes Version: 1.28+
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collaboration-service
+  namespace: detection-platform
+  labels:
+    app: collaboration-service
+    component: backend
+    app.kubernetes.io/name: collaboration-service
+    app.kubernetes.io/part-of: ai-detection-platform
+  annotations:
+    description: "Real-time collaboration service for WebSocket connections and community features"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3000"
+    prometheus.io/path: "/metrics"
+spec:
+  # High availability with 3 replicas
+  replicas: 3
+  # Zero-downtime deployment strategy
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: collaboration-service
+  template:
+    metadata:
+      labels:
+        app: collaboration-service
+        component: backend
+      annotations:
+        checksum/config: ${CONFIG_CHECKSUM}
+        checksum/secrets: ${SECRETS_CHECKSUM}
+    spec:
+      # Security context for the pod
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+      # Service account for RBAC
+      serviceAccountName: collaboration-service-sa
+      containers:
+        - name: collaboration-service
+          image: ${REGISTRY}/collaboration-service:${VERSION}
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+            - name: websocket
+              containerPort: 3001
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          # Resource limits and requests
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          # Health checks
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # Environment configuration
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+            - name: WEBSOCKET_PORT
+              value: "3001"
+            # Database configuration from secrets
+            - name: MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: database-credentials
+                  key: MONGODB_URI
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: database-credentials
+                  key: REDIS_PASSWORD
+            # JWT configuration from secrets
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secrets
+                  key: JWT_SECRET
+          # Security context for the container
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            capabilities:
+              drop:
+                - ALL
+          # Volume mounts
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/config
+              readOnly: true
+            - name: secrets-volume
+              mountPath: /app/secrets
+              readOnly: true
+            - name: tmp-volume
+              mountPath: /tmp
+      # Volumes configuration
+      volumes:
+        - name: config-volume
+          configMap:
+            name: collaboration-service-config
+        - name: secrets-volume
+          secret:
+            secretName: collaboration-service-secrets
+        - name: tmp-volume
+          emptyDir: {}
+      # Pod scheduling and affinity
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - collaboration-service
+                topologyKey: kubernetes.io/hostname
+      # Node selection
+      nodeSelector:
+        kubernetes.io/role: worker
+      # Tolerations for node conditions
+      tolerations:
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 300
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 300
